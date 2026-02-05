@@ -3,9 +3,8 @@ const userController = require("../controller/usercontroller");
 const { validate } = require('../middleware/validate');
 const { createUserValidator, loginValidator } = require('../validators/user.validator');
 const jwtMiddleware = require("../middleware/jwtMiddleware");
-const adminMiddleware =require("../middleware/adminMiddleware")
 const ticketController = require("../controller/ticketController");
-
+const dashboardController =require('../controller/dashboardController')
 const router = express.Router();
 
 // -------- Public Routes --------
@@ -19,7 +18,8 @@ router.post("/ticket/create", jwtMiddleware, ticketController.createTicketContro
 router.get("/ticket/list", jwtMiddleware, ticketController.viewTicketController);
 //get ticket details
 router.get("/ticket/:id", ticketController.getTicketDetailsController);
-//
+//get dashboarddata
+router.get("/dashboard", jwtMiddleware, dashboardController.getDashboardData);
 
 
 module.exports = router;

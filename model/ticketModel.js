@@ -1,51 +1,72 @@
 const mongoose = require("mongoose");
 
-const ticketSchema = new mongoose.Schema({
+const ticketSchema = new mongoose.Schema(
+  {
     title: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
     description: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
+
+    // Updated priority to reference Priority model
     priority: {
-        type: String,
-        enum: ["Low", "Medium", "High", "Critical"],
-        default: "Low"
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Priorities", // reference the Priorities collection
+      required: true,
     },
+
     status: {
-        type: String,
-        enum: ["Open", "In Progress", "Resolved", "Closed"],  // fixed
-        default: "Open"
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "statuses",
+      required: true,
     },
     category: {
-        type: String,
-        default: "Others"
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "categories",
+      required: true,
     },
     assignedTo: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "users",
-        default: null
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+      default: null,
     },
     createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "users",
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+      required: true,
     },
+    comments: [
+      {
+        commentedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "users",
+          required: true,
+        },
+        message: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     activityLog: [
-        {
-            message: {
-                type: String
-            },
-            timestamp: {
-                type: Date,
-                default: Date.now
-            }
-        }
-    ]
-}, { timestamps: true });
+      {
+        message: String,
+        timestamp: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+  },
+  { timestamps: true }
+);
 
-const tickets = mongoose.model("tickets", ticketSchema);
-module.exports = tickets;
+module.exports = mongoose.model("tickets", ticketSchema);

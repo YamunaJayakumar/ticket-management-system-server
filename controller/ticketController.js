@@ -1,144 +1,143 @@
-const tickets = require("../model/ticketModel")
-const users = require("../model/userModel"); // to check assignedTo user exists
+const tickets = require("../model/ticketModel");
+const users = require("../model/userModel");
+const Status = require("../model/status");
+const Category = require("../model/category");
+const Priority = require('../model/priority'); 
 
-// Create Ticket Controller
 exports.createTicketController = async (req, res) => {
-    console.log("inside createTicketController");
+  console.log("inside createTicketController");
 
-    try {
-        // Get user info from token
-        const userId = req.user.id;
-        const role = req.user.role;
+  try {
+    const { title, description, category, priority } = req.body;
 
-        // Destructure request body
-        const { title, description, priority, category, assignedTo } = req.body;
-
-        // Basic validation
-        if (!title || !description) {
-            return res.status(400).json({ message: "Title and description are required" });
-        }
-
-        // Validate priority enum
-        const validPriorities = ["Low", "Medium", "High", "Critical"];
-        if (priority && !validPriorities.includes(priority)) {
-            return res.status(400).json({ message: "Invalid priority value" });
-        }
-
-        // Only admin can assign tickets
-        let assignedUser = null;
-        if (assignedTo) {
-            if (role !== "Admin") {
-                return res.status(403).json({ message: "Only admin can assign tickets" });
-            }
-
-            // Check if assigned user exists
-            assignedUser = await users.findById(assignedTo);
-            if (!assignedUser) {
-                return res.status(404).json({ message: "Assigned user not found" });
-            }
-        }
-
-        // Create ticket object
-        const newTicket = new tickets({
-            title,
-            description,
-            priority: priority || "Low", // default Low
-            category: category || "Others", // default Others
-            status: "Open",
-            createdBy: userId,
-            assignedTo: assignedUser ? assignedUser._id : null,
-            activityLog: [
-                {
-                    message: "Ticket created",
-                    timestamp: new Date()
-                },
-                assignedUser
-                    ? { message: `Assigned to ${assignedUser.name}`, timestamp: new Date() }
-                    : null
-            ].filter(Boolean) // remove null if no assigned user
-        });
-
-        // Save ticket
-        const savedTicket = await newTicket.save();
-
-        // Populate for frontend (createdBy and assignedTo)
-        await savedTicket.populate([
-            { path: "createdBy", select: "name email" },
-            { path: "assignedTo", select: "name email" }
-        ]);
-
-        // Return consistent API response
-        return res.status(201).json({
-            success: true,
-            data: savedTicket
-        });
-
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, error: err.message });
+    // ✅ Validate required fields
+    if (!title || !description ) {
+      return res.status(400).json({
+        message: "Title, description and category are required",
+      });
     }
+
+    // ✅ Find Category by ID
+    const categoryDoc = await Category.findById(category);
+    if (!categoryDoc) {
+      return res.status(400).json({ message: "Invalid category id" });
+    }
+
+    // ✅ Find Priority by ID (or default to "Medium")
+    let priorityDoc;
+    if (priority) {
+      priorityDoc = await Priority.findById(priority);
+      if (!priorityDoc) {
+        return res.status(400).json({ message: "Invalid priority id" });
+      }
+    } else {
+      priorityDoc = await Priority.findOne({ name: "Medium" });
+      if (!priorityDoc) {
+        return res.status(500).json({ message: "Default priority not found" });
+      }
+    }
+
+    // ✅ Find default status ("Open")
+    const openStatus = await Status.findOne({ name: "Open" });
+    if (!openStatus) {
+      return res.status(500).json({ message: "Default status 'Open' not found" });
+    }
+
+    // ✅ Create ticket
+    const ticket = new tickets({
+      title,
+      description,
+      category: categoryDoc._id,
+      priority: priorityDoc._id,
+      status: openStatus._id,
+      createdBy: req.user.id,
+    });
+
+    await ticket.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Ticket created successfully",
+      data: ticket,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 
-//view all tickets
+
+
+
+
+//view all tickets-user(user can see ticket created by him) and admin(admin can see all tickets)
+
+
 exports.viewTicketController = async (req, res) => {
-    console.log("inside viewTicketController")
-    try {
-        const userId = req.user.id;
-        const role = req.user.role;
-        
-        
-        let ticketsList;
-        if (role == "admin") {
-            // Admin can see all tickets
-            ticketsList = await tickets.find().populate(
-                [
-                    { path: "createdBy", select: "name email" },
-                    { path: "assignedTo", select: "name email" }
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
 
-                ]
-            ).sort({ createdAt: -1 }) // newest first
-            
-        } else {
-            //users can see tickets they created or assigned to them
-            ticketsList = await tickets.find({
-                $or: [
-                    { createdBy: userId },
-                    { assignedTo: userId }
-                ]
-            }).populate([
-          { path: "createdBy", select: "name email" },
-          { path: "assignedTo", select: "name email" }
-        ])
+    let ticketsList;
+
+    if (role === "admin") {
+      ticketsList = await tickets
+        .find()
+        .populate({ path: "createdBy", select: "name email" })
+        .populate({ path: "assignedTo", select: "name email" })
+        .populate({ path: "status", select: "name color" })      // <-- populate status
+        .populate({ path: "priority", select: "name color" })    // <-- populate priority
+        .populate({ path: "category", select: "name" })
         .sort({ createdAt: -1 });
-        }
-        return res.status(200).json(ticketsList);
-    } catch (err) {
-        res.status(500).json(err)
+    } else {
+      ticketsList = await tickets
+        .find({ $or: [{ createdBy: userId }, { assignedTo: userId }] })
+        .populate({ path: "createdBy", select: "name email" })
+        .populate({ path: "assignedTo", select: "name email" })
+        .populate({ path: "status", select: "name color" })      // <-- populate status
+        .populate({ path: "priority", select: "name color" })    // <-- populate priority
+        .populate({ path: "category", select: "name" })
+        .sort({ createdAt: -1 });
     }
 
-}
-
-//view one ticket
-exports.getTicketDetailsController=async(req,res)=>{
-    console.log("inside getTicketDetailsController");
-    try{
-        const { id } = req.params
-        console.log(id)
-        // Find ticket and populate createdBy, assignedTo
-        const ticket =await tickets.findById(id).populate([
-            { path: "createdBy", select: "name email" },
-            { path: "assignedTo", select: "name email" }
-        ])
-        if(!ticket){
-            return res.status(404).json("Ticket not found")
-        }
-    return res.status(200).json(ticket)
+    return res.status(200).json(ticketsList);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 
-    
-    }catch(err){
-        res.status(500).json(err)
+
+
+// View one ticket with populated fields
+exports.getTicketDetailsController = async (req, res) => {
+  console.log("inside getTicketDetailsController");
+
+  try {
+    const { id } = req.params;
+    console.log("Ticket ID:", id);
+
+    // Find ticket and populate all references
+    const ticket = await tickets.findById(id).populate([
+      { path: "createdBy", select: "name email" },
+      { path: "assignedTo", select: "name email" },
+      { path: "status", select: "name color" },       // <-- populate status
+      { path: "priority", select: "name color" },     // <-- populate priority
+      { path: "category", select: "name" }           // <-- populate category
+    ]);
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
     }
-    
-}
+
+    return res.status(200).json(ticket);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
