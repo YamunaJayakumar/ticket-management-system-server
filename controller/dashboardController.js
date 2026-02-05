@@ -1,78 +1,80 @@
-const mongoose = require("mongoose");
-const tickets = require("../model/ticketModel");
-const Priorities = require("../model/priority");
-
+const tickets = require('../model/ticketModel')
 exports.getDashboardData = async (req, res) => {
+  console.log("inside getDashboardData");
   try {
-    // Convert user ID to ObjectId correctly
-    const userId = new mongoose.Types.ObjectId(req.user.id);
-    const role = req.user.role;
+    const userId = req.user.id
+    const role = req.user.role
+    console.log(userId, role)
 
-    // Build ticket filter based on role
-    const ticketFilter =
-      role === "admin"
-        ? {}
-        : { $or: [{ createdBy: userId }, { assignedTo: userId }] };
+    let ticketFilter = {}
+    if (role !== "admin") {
+      ticketFilter = {
+        $or: [
+          { createdBy: userId },
+          { assignedTo: userId }
+        ]
+      }
+    }
+    //fetch tickets
+    const allTickets = await tickets.find(ticketFilter).populate("status", "name").populate("priority", "name")
 
-    // Total tickets
-    const totalTickets = await tickets.countDocuments(ticketFilter);
+    //total ticket
+    const totalTickets = allTickets.length
+    //high priority ticket
+    const highPriority = allTickets.filter(ticket => ["high", "critical"].includes(ticket.priority?.name?.toLowerCase())).length
+    //ticket by status
 
-    // High priority tickets
-    const highPriorityDocs = await Priorities.find({ name: { $in: ["High", "Critical"] } });
-    const highPriorityIds = highPriorityDocs.map((p) => p._id);
+    let ticketByStatus = {}
+    allTickets.forEach(ticket => {
+      const status = ticket.status?.name || "unassigned"
+      ticketByStatus[status] = (ticketByStatus[status] || 0
+      ) + 1
+    })
+    //tickets created by last 7 days
+   const ticketsPerDayMap = {};
+   const today = new Date();
+today.setHours(0, 0, 0, 0);
 
-    const highPriority = await tickets.countDocuments({
-      ...ticketFilter,
-      priority: { $in: highPriorityIds },
+allTickets.forEach(ticket => {
+  const createdDate = new Date(ticket.createdAt);
+  createdDate.setHours(0, 0, 0, 0);
+
+  const diffInDays =
+    (today - createdDate) / (1000 * 60 * 60 * 24);
+
+  if (diffInDays >= 0 && diffInDays < 7) {
+    const label = createdDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit"
     });
 
-    // Tickets by status
-    const ticketsByStatusAgg = await tickets.aggregate([
-      { $match: ticketFilter },
-      {
-        $lookup: {
-          from: "statuses",
-          localField: "status",
-          foreignField: "_id",
-          as: "statusData",
-        },
-      },
-      { $unwind: { path: "$statusData", preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: "$statusData.name",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    ticketsPerDayMap[label] =
+      (ticketsPerDayMap[label] || 0) + 1;
+  }
 
-    const ticketsByStatus = {};
-    ticketsByStatusAgg.forEach((s) => (ticketsByStatus[s._id || "Unassigned"] = s.count));
+});
+//
+    
+//converts this to object
+const ticketsPerDay =Object.entries(ticketsPerDayMap).map(
+   ([date, count]) => ({ date, count })
+)
 
-    // Tickets per day (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    const ticketsPerDayAgg = await tickets.aggregate([
-      { $match: { ...ticketFilter, createdAt: { $gte: sevenDaysAgo } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%b %d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
 
-    res.json({
+
+    
+    res.status(200).json({
       totalTickets,
       highPriority,
-      ticketsByStatus,
-      ticketsPerDay: ticketsPerDayAgg.map((d) => ({ date: d._id, count: d.count })),
-    });
+      ticketByStatus,
+      ticketsPerDay
+    })
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
+    console.log(err)
+    res.status(500).json(err)
   }
-};
+
+
+}

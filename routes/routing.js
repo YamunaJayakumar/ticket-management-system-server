@@ -18,7 +18,7 @@ router.post("/ticket/create", jwtMiddleware, ticketController.createTicketContro
 router.get("/ticket/list", jwtMiddleware, ticketController.viewTicketController);
 //get ticket details
 router.get("/ticket/:id", ticketController.getTicketDetailsController);
-//get dashboarddata
+//get dashboarddata-for admin and user
 router.get("/dashboard", jwtMiddleware, dashboardController.getDashboardData);
 
 
