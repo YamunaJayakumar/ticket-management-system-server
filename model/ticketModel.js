@@ -1,58 +1,51 @@
-const mongoose =require("mongoose")
+const mongoose = require("mongoose");
 
-const ticketSchema =new mongoose.Schema({
-    title:{
-        type:String,
-        required:true,
-        trim:true
+const ticketSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true
     },
     description: {
-      type: String,
-      required: true
+        type: String,
+        required: true
     },
-    priority:{
-        type:String,
+    priority: {
+        type: String,
         enum: ["Low", "Medium", "High", "Critical"],
         default: "Low"
     },
-     status:{
+    status: {
         type: String,
-        enum: ["Open", "In Progress", "Resolved", "Closed"],
+        enum: ["Open", "In Progress", "Resolved", "Closed"],  // fixed
         default: "Open"
-
     },
-    category:{
+    category: {
         type: String,
         default: "Others"
     },
-    assignedTo:{
+    assignedTo: {
         type: mongoose.Schema.Types.ObjectId,
-        ref:"users",
+        ref: "users",
         default: null
-
     },
-    createdBy:{
+    createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref:"users",
-        required:true
-
+        ref: "users",
+        required: true
     },
-    activityLog:[
+    activityLog: [
         {
-            message:{
-                type:String
-                
+            message: {
+                type: String
             },
-            timestamp:{
-                type:Date,
-                default:Date.now
-            },
+            timestamp: {
+                type: Date,
+                default: Date.now
+            }
         }
     ]
+}, { timestamps: true });
 
-},
-{timestamps:true}
-)
-
-const tickets = mongoose.model("tickets",ticketSchema)
-module.exports =tickets
+const tickets = mongoose.model("tickets", ticketSchema);
+module.exports = tickets;

@@ -1,12 +1,25 @@
 const express = require("express");
-const usercontroller = require("../controller/usercontroller");
-const {validate}= require('../middleware/validate')
-const {createUserValidator,loginValidator} = require('../validators/user.validator')
+const userController = require("../controller/usercontroller");
+const { validate } = require('../middleware/validate');
+const { createUserValidator, loginValidator } = require('../validators/user.validator');
+const jwtMiddleware = require("../middleware/jwtMiddleware");
+const adminMiddleware =require("../middleware/adminMiddleware")
+const ticketController = require("../controller/ticketController");
 
-const router=new express.Router()
-//register user
-router.post("/auth/register",validate(createUserValidator),usercontroller.registerController)
-//login
-router.post("/auth/login",validate(loginValidator),usercontroller.loginController)
+const router = express.Router();
 
-module.exports=router
+// -------- Public Routes --------
+router.post("/auth/register", validate(createUserValidator), userController.registerController);
+router.post("/auth/login", validate(loginValidator), userController.loginController);
+
+// -------- Protected Routes ----------------------------------------------------------
+//create ticket by admin and user
+router.post("/ticket/create", jwtMiddleware, ticketController.createTicketController);
+//view ticketslist by admin and user
+router.get("/ticket/list", jwtMiddleware, ticketController.viewTicketController);
+//get ticket details
+router.get("/ticket/:id", ticketController.getTicketDetailsController);
+//
+
+
+module.exports = router;
