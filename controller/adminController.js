@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt')
 exports.addAgentController = async (req, res) => {
     console.log("inside addAgentController")
     try {
-        const { name, email, password } = req.body
+        const { name, email, password,skills = [], isActive = true } = req.body
 
         //check required fields
         if (!name || !email || !password) {
@@ -22,14 +22,19 @@ exports.addAgentController = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            role: 'agent'
+            role: 'agent',
+            skills,
+            isActive
         })
         await agent.save()
         res.status(200).json({
             _id: agent._id,
             name: agent.name,
             email: agent.email,
-            role: agent.role
+            role: agent.role,
+            skills:agent.skills,
+            isActive:agent.isActive
+
         })
 
     } catch (err) {

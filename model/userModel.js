@@ -21,6 +21,15 @@ const userSchema =new mongoose.Schema({
         enum:['admin','user',"agent"],
         default:'user'
     },
+    //agent only fields
+    skills:{
+        type:[String],
+        default:[]
+    },
+    isActive:{
+        type:Boolean,
+        default:true
+    }
 },{
     timestamps:true
 });
