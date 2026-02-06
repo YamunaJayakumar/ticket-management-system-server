@@ -11,5 +11,4 @@ const isAdmin = (req, res, next) => {
     res.status(403).json({ message: "Admin access only" });
   }
 };
-
-module.exports = isAdmin;
+module.exports = isAdmin
