@@ -4,9 +4,9 @@ const { validate } = require('../middleware/validate');
 const { createUserValidator, loginValidator } = require('../validators/user.validator');
 const jwtMiddleware = require("../middleware/jwtMiddleware");
 const ticketController = require("../controller/ticketController");
-const dashboardController =require('../controller/dashboardController')
+const dashboardController = require('../controller/dashboardController')
 const adminMiddleware = require("../middleware/adminMiddleware")
-const adminController =require('../controller/adminController')
+const adminController = require('../controller/adminController')
 const router = express.Router();
 
 // -------- Public Routes --------
@@ -25,12 +25,14 @@ router.get("/dashboard", jwtMiddleware, dashboardController.getDashboardData);
 
 //-----------------------admin routes------------------------------------------------------
 //add agent
-router.post('/admin/agents',jwtMiddleware,adminMiddleware,adminController.addAgentController)
+router.post('/admin/agents', jwtMiddleware, adminMiddleware, adminController.addAgentController)
 //get agent list
-router.get('/admin/agents',jwtMiddleware,adminMiddleware,adminController.getAgentController)
+router.get('/admin/agents', jwtMiddleware, adminMiddleware, adminController.getAgentController)
+//get agent details
+router.get('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.getAgentDetailsController)
 //update agent
-router.put('/admin/agents/:id',jwtMiddleware,adminMiddleware,adminController.updateAgentController)
+router.put('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.updateAgentController)
 //remove agent
-router.delete('/admin/agents/:id',jwtMiddleware,adminMiddleware,adminController.removeAgentController)
+router.delete('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.removeAgentController)
 
 module.exports = router;

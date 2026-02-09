@@ -11,6 +11,9 @@ const categorySchema = new mongoose.Schema(
     description: {
       type: String,
     },
+    assignedTeam: {
+      type: String, // Storing name for now, or could refer to Team model
+    },
   },
   { timestamps: true }
 );

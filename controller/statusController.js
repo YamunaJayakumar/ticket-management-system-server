@@ -13,8 +13,8 @@ exports.getStatuses = async (req, res) => {
 // Add a new status
 exports.addStatus = async (req, res) => {
   try {
-    const { name, color } = req.body;
-    const status = new Statuses({ name, color });
+    const { name } = req.body;
+    const status = new Statuses({ name });
     await status.save();
     res.json(status);
   } catch (err) {

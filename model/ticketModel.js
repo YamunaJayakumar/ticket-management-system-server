@@ -26,7 +26,7 @@ const ticketSchema = new mongoose.Schema(
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "categories",
+      ref: "specializations",
       required: true,
     },
     assignedTo: {

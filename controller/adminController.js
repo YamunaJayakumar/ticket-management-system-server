@@ -1,10 +1,12 @@
 const users = require("../model/userModel")
 const bcrypt = require('bcrypt')
+const Teams = require("../model/team");
+
 //add agent
 exports.addAgentController = async (req, res) => {
     console.log("inside addAgentController")
     try {
-        const { name, email, password,skills = [], isActive = true } = req.body
+        const { name, email, password, specializations = [], isActive = true } = req.body
 
         //check required fields
         if (!name || !email || !password) {
@@ -23,7 +25,7 @@ exports.addAgentController = async (req, res) => {
             email,
             password: hashedPassword,
             role: 'agent',
-            skills,
+            specializations,
             isActive
         })
         await agent.save()
@@ -32,9 +34,8 @@ exports.addAgentController = async (req, res) => {
             name: agent.name,
             email: agent.email,
             role: agent.role,
-            skills:agent.skills,
-            isActive:agent.isActive
-
+            specializations: agent.specializations,
+            isActive: agent.isActive
         })
 
     } catch (err) {
@@ -43,57 +44,89 @@ exports.addAgentController = async (req, res) => {
     }
 
 }
-//get agent list
-exports.getAgentController =async(req,res)=>{
-    console.log("inside getAgentController")
-    try{
-        const agents = await users.find({role:"agent"}).select('-password')
-        return res.status(200).json(agents)
 
-    }catch(err){
+//get agent list
+exports.getAgentController = async (req, res) => {
+    console.log("inside getAgentController")
+    try {
+        const agents = await users.find({ role: "agent" }).select('-password').lean();
+
+        // Populate team name for each agent
+        const agentsWithTeams = await Promise.all(agents.map(async (agent) => {
+            const team = await Teams.findOne({ members: agent._id }, 'name');
+            return {
+                ...agent,
+                teamName: team ? team.name : 'Unassigned'
+            };
+        }));
+
+        return res.status(200).json(agentsWithTeams);
+
+    } catch (err) {
         console.log(err)
         res.status(500).json(err)
     }
-
 }
+
 //edit agent details
-exports.updateAgentController=async(req,res)=>{
+exports.updateAgentController = async (req, res) => {
     console.log("Inside updateAgentController")
-    const {id}=req.params
-    const {name,email}=req.body
-    try{
-        const agent  =await users.findOneAndUpdate(
+    const { id } = req.params
+    const { name, email, password, specializations, isActive } = req.body
+    try {
+        const updateData = { name, email, specializations, isActive };
+
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+
+        const agent = await users.findOneAndUpdate(
             {
-                _id:id,role:"agent"
+                _id: id, role: "agent"
             },
-            {name,email},{new:true}
-        ).select('-passowrd')
+            updateData,
+            { new: true }
+        ).select('-password');
 
         if (!agent) return res.status(404).json("Agent not found")
 
         res.status(200).json(agent)
 
-
-    }catch(err){
+    } catch (err) {
         console.log(err)
         res.status(500).json(err)
     }
 }
+
+// Get single agent details
+exports.getAgentDetailsController = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const agent = await users.findOne({ _id: id, role: "agent" }).select('-password').lean();
+
+        if (!agent) return res.status(404).json("Agent not found");
+
+        const team = await Teams.findOne({ members: agent._id }, 'name');
+        agent.teamName = team ? team.name : 'Unassigned';
+        agent.teamId = team ? team._id : null;
+
+        res.status(200).json(agent);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json(err);
+    }
+}
+
 //remove agent
-exports.removeAgentController =async(req,res)=>{
+exports.removeAgentController = async (req, res) => {
     console.log("inside reomveAgentController")
-    try{
-        const {id}=req.params
-        //  // Optional: check if agent has assigned tickets
-        // const assignedTickets = await Ticket.find({ assignedTo: id })
-        // if (assignedTickets.length > 0) {
-        //     return res.status(400).json("Cannot delete agent with assigned tickets")
-        // }
+    try {
+        const { id } = req.params
         const agent = await users.findOneAndDelete({ _id: id, role: "agent" })
         if (!agent) return res.status(404).json("Agent not found")
         res.status(200).json("agent removed successfully")
 
-    }catch(err){
+    } catch (err) {
         console.log(err)
         res.status(500).json(err)
     }

@@ -13,8 +13,8 @@ exports.getCategories = async (req, res) => {
 // Add category (admin)
 exports.addCategory = async (req, res) => {
   try {
-    const { name, description } = req.body;
-    const category = new Categories({ name, description });
+    const { name, description, assignedTeam } = req.body;
+    const category = new Categories({ name, description, assignedTeam });
     await category.save();
     res.json(category);
   } catch (err) {
@@ -27,11 +27,11 @@ exports.updateCategory = async (req, res) => {
   console.log("inside updateCategory controller")
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, assignedTeam } = req.body;
 
     const category = await Categories.findByIdAndUpdate(
       id,
-      { name, description },
+      { name, description, assignedTeam },
       { new: true }
     );
 
