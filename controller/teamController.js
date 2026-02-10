@@ -35,6 +35,16 @@ exports.addTeam = async (req, res) => {
 
         const team = new Teams({ name, description, members, categories, color });
         await team.save();
+
+        // Update Categories collection to link this team
+        if (categories && categories.length > 0) {
+            const Category = require("../model/category");
+            await Category.updateMany(
+                { name: { $in: categories } },
+                { assignedTeam: name }
+            );
+        }
+
         res.json(team);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -61,6 +71,21 @@ exports.updateTeam = async (req, res) => {
             { new: true }
         ).populate("members", "name email");
 
+        // Update Categories collection to link this team
+        if (categories && categories.length > 0) {
+            const Category = require("../model/category");
+            // First clear previous assignments for this team name (optional but good for consistency)
+            await Category.updateMany(
+                { assignedTeam: team.name },
+                { assignedTeam: "" }
+            );
+            // Then set new ones
+            await Category.updateMany(
+                { name: { $in: categories } },
+                { assignedTeam: team.name }
+            );
+        }
+
         res.json(team);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -71,6 +96,17 @@ exports.updateTeam = async (req, res) => {
 exports.deleteTeam = async (req, res) => {
     try {
         const { id } = req.params;
+        const team = await Teams.findById(id);
+
+        if (team) {
+            const Category = require("../model/category");
+            // Clear assignedTeam for all categories linked to this team name
+            await Category.updateMany(
+                { assignedTeam: team.name },
+                { assignedTeam: "" }
+            );
+        }
+
         await Teams.findByIdAndDelete(id);
         res.json({ message: "Team deleted successfully" });
     } catch (err) {

@@ -7,6 +7,9 @@ const ticketController = require("../controller/ticketController");
 const dashboardController = require('../controller/dashboardController')
 const adminMiddleware = require("../middleware/adminMiddleware")
 const adminController = require('../controller/adminController')
+const agentMiddleware = require('../middleware/agentMiddleware')
+const agentController = require('../controller/agentController')
+
 const router = express.Router();
 
 // -------- Public Routes --------
@@ -39,5 +42,13 @@ router.delete('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminControll
 
 //get all users (admin only)
 router.get('/admin/users', jwtMiddleware, adminMiddleware, adminController.getAllUsersController)
+
+//--------------------------agentRoutes-----------------
+router.get("/agent/dashboard", jwtMiddleware, agentMiddleware, agentController.getAgentDashboardMetrics)
+router.get("/agent/tickets", jwtMiddleware, agentMiddleware, agentController.getMyTicket)
+router.get("/agent/tickets/:id", jwtMiddleware, agentMiddleware, agentController.getSingleTicketDetails)
+router.patch("/agent/tickets/:id/status", jwtMiddleware, agentMiddleware, agentController.updateTicketStatus)
+router.post("/agent/tickets/:id/comments", jwtMiddleware, agentMiddleware, agentController.addComment)
+router.delete("/agent/tickets/:ticketId/comments/:commentId", jwtMiddleware, agentMiddleware, agentController.deleteComment)
 
 module.exports = router;

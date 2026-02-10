@@ -102,13 +102,21 @@ exports.viewTicketController = async (req, res) => {
       query.assignedTeam = null;
     }
 
+    // Sorting
+    let sortOrder = { createdAt: -1 }; // Default: Newest first
+    if (req.query.sort === 'oldest') {
+      sortOrder = { createdAt: 1 };
+    } else if (req.query.sort === 'priority') {
+      sortOrder = { priority: 1 }; // Higher priority first (if IDs are ordered) or just group them
+    }
+
     const allTickets = await tickets.find(query)
       .populate({ path: "createdBy", select: "name" })
       .populate({ path: "assignedTo", select: "name" })
       .populate({ path: "status", select: "name color" })
       .populate({ path: "priority", select: "name color" })
       .populate({ path: "category", select: "name" })
-      .sort({ createdAt: -1 });
+      .sort(sortOrder);
 
     res.status(200).json(allTickets);
   } catch (err) {
@@ -134,7 +142,8 @@ exports.getTicketDetailsController = async (req, res) => {
       { path: "assignedTo", select: "name email" },
       { path: "status", select: "name color" },       // <-- populate status
       { path: "priority", select: "name color" },     // <-- populate priority
-      { path: "category", select: "name" }           // <-- populate category
+      { path: "category", select: "name" },           // <-- populate category
+      { path: "comments.commentedBy", select: "name role" } // <-- populate comment authors
     ]);
 
     if (!ticket) {
@@ -156,20 +165,20 @@ exports.updateTicketController = async (req, res) => {
     const { status, priority, assignedTo, assignedTeam, comment } = req.body;
 
     const updateData = {};
-    if (status) updateData.status = status;
-    if (priority) updateData.priority = priority;
-    if (assignedTo) updateData.assignedTo = assignedTo;
-    if (assignedTeam) updateData.assignedTeam = assignedTeam;
+    if (status !== undefined) updateData.status = status;
+    if (priority !== undefined) updateData.priority = priority;
+    if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
+    if (assignedTeam !== undefined) updateData.assignedTeam = assignedTeam;
 
     const ticket = await tickets.findById(id);
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
     // Add activity log
-    if (status && status != ticket.status) {
-      ticket.activityLog.push({ message: `Status updated to ${status}`, timestamp: new Date() });
+    if (status && status.toString() !== ticket.status?.toString()) {
+      ticket.activityLog.push({ message: `Status updated`, timestamp: new Date() });
     }
-    if (assignedTeam && assignedTeam != ticket.assignedTeam) {
-      ticket.activityLog.push({ message: `Assigned to team: ${assignedTeam}`, timestamp: new Date() });
+    if (assignedTeam !== undefined && assignedTeam !== ticket.assignedTeam) {
+      ticket.activityLog.push({ message: `Assigned to team: ${assignedTeam || 'Unassigned'}`, timestamp: new Date() });
     }
 
     if (comment) {
@@ -188,7 +197,8 @@ exports.updateTicketController = async (req, res) => {
       { path: "assignedTo", select: "name email" },
       { path: "status", select: "name color" },
       { path: "priority", select: "name color" },
-      { path: "category", select: "name" }
+      { path: "category", select: "name" },
+      { path: "comments.commentedBy", select: "name role" }
     ]);
 
     res.status(200).json(updatedTicket);

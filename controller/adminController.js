@@ -121,7 +121,14 @@ exports.getAgentDetailsController = async (req, res) => {
 exports.removeAgentController = async (req, res) => {
     console.log("inside reomveAgentController")
     try {
-        const { id } = req.params
+        const { id } = req.params;
+
+        // Remove agent from all teams first
+        await Teams.updateMany(
+            { members: id },
+            { $pull: { members: id } }
+        );
+
         const agent = await users.findOneAndDelete({ _id: id, role: "agent" })
         if (!agent) return res.status(404).json("Agent not found")
         res.status(200).json("agent removed successfully")
