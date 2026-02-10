@@ -131,3 +131,14 @@ exports.removeAgentController = async (req, res) => {
         res.status(500).json(err)
     }
 }
+
+// Get all users (Admin only)
+exports.getAllUsersController = async (req, res) => {
+    try {
+        const allUsers = await users.find().select('-password').sort({ createdAt: -1 });
+        res.status(200).json(allUsers);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};

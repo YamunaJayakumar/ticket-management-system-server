@@ -26,8 +26,12 @@ const ticketSchema = new mongoose.Schema(
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "specializations",
+      ref: "categories",
       required: true,
+    },
+    assignedTeam: {
+      type: String,
+      default: null,
     },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,

@@ -20,6 +20,8 @@ router.post("/ticket/create", jwtMiddleware, ticketController.createTicketContro
 router.get("/ticket/list", jwtMiddleware, ticketController.viewTicketController);
 //get ticket details
 router.get("/ticket/:id", ticketController.getTicketDetailsController);
+//update ticket
+router.patch("/ticket/update/:id", jwtMiddleware, ticketController.updateTicketController);
 //get dashboarddata-for admin and user
 router.get("/dashboard", jwtMiddleware, dashboardController.getDashboardData);
 
@@ -34,5 +36,8 @@ router.get('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.
 router.put('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.updateAgentController)
 //remove agent
 router.delete('/admin/agents/:id', jwtMiddleware, adminMiddleware, adminController.removeAgentController)
+
+//get all users (admin only)
+router.get('/admin/users', jwtMiddleware, adminMiddleware, adminController.getAllUsersController)
 
 module.exports = router;

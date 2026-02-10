@@ -1,80 +1,115 @@
-const tickets = require('../model/ticketModel')
+const tickets = require('../model/ticketModel');
+const Status = require('../model/status');
+const Priority = require('../model/priority');
+
 exports.getDashboardData = async (req, res) => {
   console.log("inside getDashboardData");
   try {
-    const userId = req.user.id
-    const role = req.user.role
-    console.log(userId, role)
+    const userId = req.user.id;
+    const role = req.user.role?.toLowerCase();
 
-    let ticketFilter = {}
+    let ticketFilter = {};
     if (role !== "admin") {
       ticketFilter = {
         $or: [
           { createdBy: userId },
           { assignedTo: userId }
         ]
-      }
+      };
     }
-    //fetch tickets
-    const allTickets = await tickets.find(ticketFilter).populate("status", "name").populate("priority", "name")
 
-    //total ticket
-    const totalTickets = allTickets.length
-    //high priority ticket
-    const highPriority = allTickets.filter(ticket => ["high", "critical"].includes(ticket.priority?.name?.toLowerCase())).length
-    //ticket by status
+    // Fetch all relevant tickets and populate status/priority
+    const allTickets = await tickets.find(ticketFilter)
+      .populate("status", "name")
+      .populate("priority", "name");
 
-    let ticketByStatus = {}
-    allTickets.forEach(ticket => {
-      const status = ticket.status?.name || "unassigned"
-      ticketByStatus[status] = (ticketByStatus[status] || 0
-      ) + 1
-    })
-    //tickets created by last 7 days
-   const ticketsPerDayMap = {};
-   const today = new Date();
-today.setHours(0, 0, 0, 0);
+    // Basic Counts
+    const totalIncidents = allTickets.length;
+    const openTickets = allTickets.filter(t => t.status?.name === "Open").length;
+    const activeTickets = allTickets.filter(t => !["Closed", "Resolved"].includes(t.status?.name)).length;
+    const criticalIncidents = allTickets.filter(t =>
+      t.priority?.name === "Critical" && !["Closed", "Resolved"].includes(t.status?.name)
+    ).length;
 
-allTickets.forEach(ticket => {
-  const createdDate = new Date(ticket.createdAt);
-  createdDate.setHours(0, 0, 0, 0);
-
-  const diffInDays =
-    (today - createdDate) / (1000 * 60 * 60 * 24);
-
-  if (diffInDays >= 0 && diffInDays < 7) {
-    const label = createdDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "2-digit"
+    // Status Distribution
+    const incidentsByStatus = {};
+    allTickets.forEach(t => {
+      const statusName = t.status?.name || "Unassigned";
+      incidentsByStatus[statusName] = (incidentsByStatus[statusName] || 0) + 1;
     });
 
-    ticketsPerDayMap[label] =
-      (ticketsPerDayMap[label] || 0) + 1;
-  }
+    // Priority Distribution
+    const incidentsByPriority = {};
+    allTickets.forEach(t => {
+      const priorityName = t.priority?.name || "Unassigned";
+      incidentsByPriority[priorityName] = (incidentsByPriority[priorityName] || 0) + 1;
+    });
 
-});
-//
-    
-//converts this to object
-const ticketsPerDay =Object.entries(ticketsPerDayMap).map(
-   ([date, count]) => ({ date, count })
-)
+    // Weekly Volume (Last 7 Days)
+    const weeklyVolumeMap = {};
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const last7Days = [];
 
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dayName = days[d.getDay()];
+      weeklyVolumeMap[dayName] = { day: dayName, incoming: 0, resolved: 0 };
+      last7Days.push(dayName);
+    }
 
+    allTickets.forEach(ticket => {
+      const createdDate = new Date(ticket.createdAt);
+      const today = new Date();
+      const diffTime = Math.abs(today - createdDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+      if (diffDays <= 7) {
+        const dayName = days[createdDate.getDay()];
+        if (weeklyVolumeMap[dayName]) {
+          weeklyVolumeMap[dayName].incoming += 1;
+        }
+      }
 
-    
+      if (ticket.status?.name === "Resolved" || ticket.status?.name === "Closed") {
+        const updatedDate = new Date(ticket.updatedAt);
+        const today = new Date();
+        const diffTimeUp = Math.abs(today - updatedDate);
+        const diffDaysUp = Math.ceil(diffTimeUp / (1000 * 60 * 60 * 24));
+        if (diffDaysUp <= 7) {
+          const dayName = days[updatedDate.getDay()];
+          if (weeklyVolumeMap[dayName]) {
+            weeklyVolumeMap[dayName].resolved += 1;
+          }
+        }
+      }
+    });
+
+    const weeklyVolume = last7Days.map(day => weeklyVolumeMap[day]);
+
     res.status(200).json({
-      totalTickets,
-      highPriority,
-      ticketByStatus,
-      ticketsPerDay
-    })
+      openTickets,
+      activeTickets,
+      totalIncidents,
+      criticalIncidents,
+      incidentsByStatus,
+      incidentsByPriority,
+      weeklyVolume,
+      // Backward compatibility for User Dashboard
+      totalTickets: totalIncidents,
+      highPriority: criticalIncidents + allTickets.filter(t => t.priority?.name === "High").length,
+      ticketByStatus: incidentsByStatus,
+      ticketsPerDay: weeklyVolume.map(v => ({ date: v.day, count: v.incoming })),
+      // Placeholders for legacy/future features
+      slaBreaches: 0,
+      onSchedule: totalIncidents - criticalIncidents,
+      systemHealth: 100,
+      slaCompliance: 100,
+      avgResolution: "24h"
+    });
 
   } catch (err) {
-    console.log(err)
-    res.status(500).json(err)
+    console.error(err);
+    res.status(500).json({ message: "Internal server error", error: err.message });
   }
-
-
-}
+};

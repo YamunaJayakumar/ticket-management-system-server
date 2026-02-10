@@ -2,7 +2,7 @@ const tickets = require("../model/ticketModel");
 const users = require("../model/userModel");
 const Status = require("../model/status");
 const Category = require("../model/category");
-const Priority = require('../model/priority'); 
+const Priority = require('../model/priority');
 
 exports.createTicketController = async (req, res) => {
   console.log("inside createTicketController");
@@ -11,7 +11,7 @@ exports.createTicketController = async (req, res) => {
     const { title, description, category, priority } = req.body;
 
     // ✅ Validate required fields
-    if (!title || !description ) {
+    if (!title || !description) {
       return res.status(400).json({
         message: "Title, description and category are required",
       });
@@ -51,6 +51,7 @@ exports.createTicketController = async (req, res) => {
       priority: priorityDoc._id,
       status: openStatus._id,
       createdBy: req.user.id,
+      assignedTeam: categoryDoc.assignedTeam || null, // Auto-assign team from category
     });
 
     await ticket.save();
@@ -76,36 +77,43 @@ exports.createTicketController = async (req, res) => {
 
 
 exports.viewTicketController = async (req, res) => {
+  console.log("inside viewTicketController");
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
+    const { status, priority, search, unassigned } = req.query;
+    let query = {};
 
-    let ticketsList;
-
-    if (role === "admin") {
-      ticketsList = await tickets
-        .find()
-        .populate({ path: "createdBy", select: "name email" })
-        .populate({ path: "assignedTo", select: "name email" })
-        .populate({ path: "status", select: "name color" })      // <-- populate status
-        .populate({ path: "priority", select: "name color" })    // <-- populate priority
-        .populate({ path: "category", select: "name" })
-        .sort({ createdAt: -1 });
-    } else {
-      ticketsList = await tickets
-        .find({ $or: [{ createdBy: userId }, { assignedTo: userId }] })
-        .populate({ path: "createdBy", select: "name email" })
-        .populate({ path: "assignedTo", select: "name email" })
-        .populate({ path: "status", select: "name color" })      // <-- populate status
-        .populate({ path: "priority", select: "name color" })    // <-- populate priority
-        .populate({ path: "category", select: "name" })
-        .sort({ createdAt: -1 });
+    // If user is not admin, only show their own tickets
+    if (req.user.role?.toLowerCase() !== 'admin') {
+      query.createdBy = req.user.id;
     }
 
-    return res.status(200).json(ticketsList);
+    // Apply filters
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { assignedTeam: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (unassigned === 'true') {
+      query.assignedTeam = null;
+    }
+
+    const allTickets = await tickets.find(query)
+      .populate({ path: "createdBy", select: "name" })
+      .populate({ path: "assignedTo", select: "name" })
+      .populate({ path: "status", select: "name color" })
+      .populate({ path: "priority", select: "name color" })
+      .populate({ path: "category", select: "name" })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(allTickets);
   } catch (err) {
     console.log(err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error", error: err.message });
   }
 };
 
@@ -141,3 +149,51 @@ exports.getTicketDetailsController = async (req, res) => {
   }
 };
 
+// Update ticket (Admin or Assigned Agent)
+exports.updateTicketController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, priority, assignedTo, assignedTeam, comment } = req.body;
+
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (priority) updateData.priority = priority;
+    if (assignedTo) updateData.assignedTo = assignedTo;
+    if (assignedTeam) updateData.assignedTeam = assignedTeam;
+
+    const ticket = await tickets.findById(id);
+    if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+    // Add activity log
+    if (status && status != ticket.status) {
+      ticket.activityLog.push({ message: `Status updated to ${status}`, timestamp: new Date() });
+    }
+    if (assignedTeam && assignedTeam != ticket.assignedTeam) {
+      ticket.activityLog.push({ message: `Assigned to team: ${assignedTeam}`, timestamp: new Date() });
+    }
+
+    if (comment) {
+      ticket.comments.push({
+        commentedBy: req.user.id,
+        message: comment,
+        createdAt: new Date()
+      });
+    }
+
+    Object.assign(ticket, updateData);
+    await ticket.save();
+
+    const updatedTicket = await tickets.findById(id).populate([
+      { path: "createdBy", select: "name email" },
+      { path: "assignedTo", select: "name email" },
+      { path: "status", select: "name color" },
+      { path: "priority", select: "name color" },
+      { path: "category", select: "name" }
+    ]);
+
+    res.status(200).json(updatedTicket);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
