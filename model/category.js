@@ -12,7 +12,8 @@ const categorySchema = new mongoose.Schema(
       type: String,
     },
     assignedTeam: {
-      type: String, // Storing name for now, or could refer to Team model
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "teams",
     },
   },
   { timestamps: true }

@@ -30,7 +30,8 @@ const ticketSchema = new mongoose.Schema(
       required: true,
     },
     assignedTeam: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "teams",
       default: null,
     },
     assignedTo: {

@@ -11,17 +11,18 @@ exports.getMyTicket = async (req, res) => {
         const agentId = req.user.id
 
         // Get teams the agent belongs to
-        const agentTeams = await Teams.find({ members: agentId }, 'name');
-        const agentTeamNames = agentTeams.map(t => t.name);
+        const agentTeams = await Teams.find({ members: agentId }, '_id');
+        const agentTeamIds = agentTeams.map(t => t._id);
 
         const ticket = await tickets.find({
             $or: [
                 { assignedTo: agentId },
-                { assignedTeam: { $in: agentTeamNames } }
+                { assignedTeam: { $in: agentTeamIds } }
             ]
         }).populate("priority", "name")
             .populate("status", "name")
             .populate("category", "name")
+            .populate("assignedTeam", "name")
             .populate("createdBy", "name email")
             .sort({ updatedAt: -1 });
 
@@ -41,6 +42,7 @@ exports.getSingleTicketDetails = async (req, res) => {
         const ticket = await tickets.findById(id).populate("priority", "name")
             .populate("status", "name")
             .populate("category", "name")
+            .populate("assignedTeam", "name")
             .populate("createdBy", "name email")
             .populate("assignedTo", "name email")
             .populate("comments.commentedBy", "name role");
@@ -82,6 +84,7 @@ exports.updateTicketStatus = async (req, res) => {
         ).populate("priority", "name")
             .populate("status", "name")
             .populate("category", "name")
+            .populate("assignedTeam", "name")
             .populate("createdBy", "name email")
             .populate("assignedTo", "name email")
             .populate("comments.commentedBy", "name role");
@@ -102,6 +105,7 @@ exports.updateTicketStatus = async (req, res) => {
 exports.addComment = async (req, res) => {
     console.log("inside addComment")
     const { id } = req.params;
+    const { message } = req.body; // Fixed missing message destructuring
     try {
         const ticketCheck = await tickets.findById(id).populate('status');
         if (!ticketCheck) return res.status(404).json({ message: "Ticket not found" });
@@ -149,13 +153,13 @@ exports.getAgentDashboardMetrics = async (req, res) => {
         const agentId = new (require('mongoose').Types.ObjectId)(req.user.id);
 
         // Get teams the agent belongs to
-        const agentTeams = await Teams.find({ members: agentId }, 'name');
-        const agentTeamNames = agentTeams.map(t => t.name);
+        const agentTeams = await Teams.find({ members: agentId }, '_id');
+        const agentTeamIds = agentTeams.map(t => t._id);
 
         const visibilityMatch = {
             $or: [
                 { assignedTo: agentId },
-                { assignedTeam: { $in: agentTeamNames } }
+                { assignedTeam: { $in: agentTeamIds } }
             ]
         };
 

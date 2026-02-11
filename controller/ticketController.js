@@ -52,7 +52,7 @@ exports.createTicketController = async (req, res) => {
       priority: priorityDoc._id,
       status: openStatus._id,
       createdBy: req.user.id,
-      assignedTeam: categoryDoc.assignedTeam || null, // Auto-assign team from category
+      assignedTeam: categoryDoc.assignedTeam || null, // Auto-assign team from category (ObjectId)
     });
 
     await ticket.save();
@@ -94,13 +94,12 @@ exports.viewTicketController = async (req, res) => {
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { assignedTeam: { $regex: search, $options: 'i' } }
+        { description: { $regex: search, $options: 'i' } }
       ];
     }
 
     if (unassigned === 'true') {
-      query.assignedTeam = { $in: [null, ""] };
+      query.assignedTeam = null;
     }
 
     // Sorting
@@ -117,6 +116,7 @@ exports.viewTicketController = async (req, res) => {
       .populate({ path: "status", select: "name color" })
       .populate({ path: "priority", select: "name color" })
       .populate({ path: "category", select: "name" })
+      .populate({ path: "assignedTeam", select: "name" })
       .sort(sortOrder);
 
     res.status(200).json(allTickets);
@@ -144,6 +144,7 @@ exports.getTicketDetailsController = async (req, res) => {
       { path: "status", select: "name color" },       // <-- populate status
       { path: "priority", select: "name color" },     // <-- populate priority
       { path: "category", select: "name" },           // <-- populate category
+      { path: "assignedTeam", select: "name" },       // <-- populate assignedTeam
       { path: "comments.commentedBy", select: "name role" } // <-- populate comment authors
     ]);
 
@@ -171,7 +172,7 @@ exports.updateTicketController = async (req, res) => {
     if (assignedTo !== undefined) updateData.assignedTo = assignedTo || null;
     if (assignedTeam !== undefined) updateData.assignedTeam = assignedTeam || null;
 
-    const ticket = await tickets.findById(id).populate('status');
+    const ticket = await tickets.findById(id).populate('status').populate('assignedTeam');
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
     // Permission Check
@@ -202,11 +203,11 @@ exports.updateTicketController = async (req, res) => {
     }
 
     // Add activity log
-    if (status && status.toString() !== ticket.status?.toString()) {
+    if (status && status.toString() !== ticket.status?._id?.toString()) {
       ticket.activityLog.push({ message: `Status updated`, timestamp: new Date() });
     }
-    if (assignedTeam !== undefined && assignedTeam !== ticket.assignedTeam) {
-      ticket.activityLog.push({ message: `Assigned to team: ${assignedTeam || 'Unassigned'}`, timestamp: new Date() });
+    if (assignedTeam !== undefined && assignedTeam?.toString() !== ticket.assignedTeam?._id?.toString()) {
+      ticket.activityLog.push({ message: `Assigned to team update`, timestamp: new Date() });
     }
 
     if (comment) {
@@ -268,6 +269,7 @@ exports.updateTicketController = async (req, res) => {
       { path: "status", select: "name color" },
       { path: "priority", select: "name color" },
       { path: "category", select: "name" },
+      { path: "assignedTeam", select: "name" },
       { path: "comments.commentedBy", select: "name role" }
     ]);
 

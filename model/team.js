@@ -17,11 +17,6 @@ const teamSchema = new mongoose.Schema(
                 ref: "users",
             },
         ],
-        categories: [
-            {
-                type: String, // Storing category names for simplicity, or we could ref Categories model
-            },
-        ],
         color: {
             type: String,
             default: "bg-teal-500",

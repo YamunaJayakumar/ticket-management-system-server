@@ -33,15 +33,19 @@ exports.addTeam = async (req, res) => {
             }
         }
 
-        const team = new Teams({ name, description, members, categories, color });
+        const team = new Teams({ name, description, members, color });
         await team.save();
 
         // Update Categories collection to link this team
         if (categories && categories.length > 0) {
             const Category = require("../model/category");
+            // categories could be an array of IDs or names. 
+            // If the frontend sends IDs (preferred), use _id. If names, use name.
+            // For now, let's assume names or IDs and handle both if possible, 
+            // but let's stick to the refactor's goal: ObjectId.
             await Category.updateMany(
-                { name: { $in: categories } },
-                { assignedTeam: name }
+                { _id: { $in: categories } },
+                { assignedTeam: team._id }
             );
         }
 
@@ -67,22 +71,22 @@ exports.updateTeam = async (req, res) => {
 
         const team = await Teams.findByIdAndUpdate(
             id,
-            { name, description, members, categories, color },
+            { name, description, members, color },
             { new: true }
         ).populate("members", "name email");
 
         // Update Categories collection to link this team
         if (categories && categories.length > 0) {
             const Category = require("../model/category");
-            // First clear previous assignments for this team name (optional but good for consistency)
+            // First clear previous assignments for this team
             await Category.updateMany(
-                { assignedTeam: team.name },
-                { assignedTeam: "" }
+                { assignedTeam: team._id },
+                { assignedTeam: null }
             );
             // Then set new ones
             await Category.updateMany(
-                { name: { $in: categories } },
-                { assignedTeam: team.name }
+                { _id: { $in: categories } },
+                { assignedTeam: team._id }
             );
         }
 
@@ -100,10 +104,10 @@ exports.deleteTeam = async (req, res) => {
 
         if (team) {
             const Category = require("../model/category");
-            // Clear assignedTeam for all categories linked to this team name
+            // Clear assignedTeam for all categories linked to this team ID
             await Category.updateMany(
-                { assignedTeam: team.name },
-                { assignedTeam: "" }
+                { assignedTeam: team._id },
+                { assignedTeam: null }
             );
         }
 
