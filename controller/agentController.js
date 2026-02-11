@@ -2,6 +2,7 @@ const tickets = require('../model/ticketModel')
 const Priorities = require('../model/priority')
 const statuses = require('../model/status')
 const Teams = require('../model/team')
+const notificationController = require('./notificationController')
 
 //get:ticket assigned to a logged in agent
 exports.getMyTicket = async (req, res) => {
@@ -58,12 +59,14 @@ exports.getSingleTicketDetails = async (req, res) => {
 }
 //patch:update ticket status
 exports.updateTicketStatus = async (req, res) => {
-    console.log("inside getSingleTicketDetails")
+    console.log("inside updateTicketStatus")
+    const { id } = req.params;
+    const { statusId } = req.body;
     try {
-        const { id } = req.params
-        const { statusId } = req.body;
-        if (!statusId) {
-            return res.status(400).json({ message: "Status is required" });
+        const ticketCheck = await tickets.findById(id).populate('status');
+        if (!ticketCheck) return res.status(404).json("ticket not found");
+        if (ticketCheck.status?.name?.toLowerCase() === 'closed') {
+            return res.status(403).json({ message: "Cannot update status of a closed ticket" });
         }
 
         const ticket = await tickets.findByIdAndUpdate(id,
@@ -98,11 +101,12 @@ exports.updateTicketStatus = async (req, res) => {
 //post"add comment (agent)
 exports.addComment = async (req, res) => {
     console.log("inside addComment")
+    const { id } = req.params;
     try {
-        const { id } = req.params;
-        const { message } = req.body;
-        if (!message || !message.trim()) {
-            return res.status(400).json({ message: "Comment cannot be empty" });
+        const ticketCheck = await tickets.findById(id).populate('status');
+        if (!ticketCheck) return res.status(404).json({ message: "Ticket not found" });
+        if (ticketCheck.status?.name?.toLowerCase() === 'closed') {
+            return res.status(403).json({ message: "Cannot add comments to a closed ticket" });
         }
 
         const ticket = await tickets.findByIdAndUpdate(
@@ -121,6 +125,16 @@ exports.addComment = async (req, res) => {
         if (!ticket) {
             return res.status(404).json({ message: "Ticket not found" });
         }
+
+        // Trigger Notification to creator
+        const ticketDoc = await tickets.findById(id);
+        await notificationController.createNotification({
+            recipient: ticketDoc.createdBy,
+            sender: req.user.id,
+            message: `Agent commented on your ticket: ${ticketDoc.title}`,
+            ticketId: ticketDoc._id,
+            type: "commented"
+        });
 
         return res.status(200).json(ticket)
 
@@ -226,6 +240,12 @@ exports.deleteComment = async (req, res) => {
     console.log("inside deleteComment")
     try {
         const { ticketId, commentId } = req.params;
+
+        const ticketCheck = await tickets.findById(ticketId).populate('status');
+        if (!ticketCheck) return res.status(404).json({ message: "Ticket not found" });
+        if (ticketCheck.status?.name?.toLowerCase() === 'closed') {
+            return res.status(403).json({ message: "Cannot delete comments from a closed ticket" });
+        }
 
         const ticket = await tickets.findOneAndUpdate(
             {

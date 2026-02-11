@@ -9,6 +9,7 @@ const adminMiddleware = require("../middleware/adminMiddleware")
 const adminController = require('../controller/adminController')
 const agentMiddleware = require('../middleware/agentMiddleware')
 const agentController = require('../controller/agentController')
+const notificationController = require('../controller/notificationController')
 
 const router = express.Router();
 
@@ -17,6 +18,11 @@ router.post("/auth/register", validate(createUserValidator), userController.regi
 router.post("/auth/login", validate(loginValidator), userController.loginController);
 
 // -------- Protected Routes ----------------------------------------------------------
+// Notifications
+router.get("/notifications", jwtMiddleware, notificationController.getUserNotifications);
+router.patch("/notifications/:id/read", jwtMiddleware, notificationController.markAsRead);
+router.delete("/notifications/clear", jwtMiddleware, notificationController.clearNotifications);
+
 //create ticket by admin and user
 router.post("/ticket/create", jwtMiddleware, ticketController.createTicketController);
 //view ticketslist by admin and user

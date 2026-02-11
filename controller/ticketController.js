@@ -3,6 +3,7 @@ const users = require("../model/userModel");
 const Status = require("../model/status");
 const Category = require("../model/category");
 const Priority = require('../model/priority');
+const notificationController = require('./notificationController');
 
 exports.createTicketController = async (req, res) => {
   console.log("inside createTicketController");
@@ -99,7 +100,7 @@ exports.viewTicketController = async (req, res) => {
     }
 
     if (unassigned === 'true') {
-      query.assignedTeam = null;
+      query.assignedTeam = { $in: [null, ""] };
     }
 
     // Sorting
@@ -167,11 +168,38 @@ exports.updateTicketController = async (req, res) => {
     const updateData = {};
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
-    if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
-    if (assignedTeam !== undefined) updateData.assignedTeam = assignedTeam;
+    if (assignedTo !== undefined) updateData.assignedTo = assignedTo || null;
+    if (assignedTeam !== undefined) updateData.assignedTeam = assignedTeam || null;
 
-    const ticket = await tickets.findById(id);
+    const ticket = await tickets.findById(id).populate('status');
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+    // Permission Check
+    const isAdmin = req.user.role?.toLowerCase() === 'admin';
+    const isAssignedAgent = ticket.assignedTo?.toString() === req.user.id;
+    const isCreator = ticket.createdBy?.toString() === req.user.id;
+
+    // Status Logic for User Closure
+    const isActuallyResolved = ticket.status?.name?.toLowerCase() === 'resolved';
+
+    // Find "Closed" status if the user is trying to close it
+    let isClosing = false;
+    if (status) {
+      const StatusModel = require('../model/status');
+      const targetStatus = await StatusModel.findById(status);
+      if (targetStatus?.name?.toLowerCase() === 'closed') {
+        isClosing = true;
+      }
+    }
+
+    if (!isAdmin && !isAssignedAgent) {
+      // If user is creator, they can ONLY change status to "Closed" IF it's "Resolved"
+      if (isCreator && isClosing && isActuallyResolved) {
+        // Allowed
+      } else {
+        return res.status(403).json({ message: "You don't have permission to update this ticket" });
+      }
+    }
 
     // Add activity log
     if (status && status.toString() !== ticket.status?.toString()) {
@@ -191,6 +219,48 @@ exports.updateTicketController = async (req, res) => {
 
     Object.assign(ticket, updateData);
     await ticket.save();
+
+    // Trigger Notifications
+    if (assignedTo && assignedTo.toString() !== (ticket.assignedTo?._id?.toString() || ticket.assignedTo?.toString())) {
+      await notificationController.createNotification({
+        recipient: assignedTo,
+        sender: req.user.id,
+        message: `You have been assigned to ticket: ${ticket.title}`,
+        ticketId: ticket._id,
+        type: "assigned"
+      });
+    }
+
+    if (comment) {
+      // Notify creator if admin/agent commented. If user commented, notify agent (or admin if unassigned).
+      let recipient = null;
+      if (isAdmin || isAssignedAgent) {
+        recipient = ticket.createdBy?._id || ticket.createdBy;
+      } else {
+        recipient = (ticket.assignedTo?._id || ticket.assignedTo);
+      }
+      await notificationController.createNotification({
+        recipient,
+        sender: req.user.id,
+        message: `New comment on ticket: ${ticket.title}`,
+        ticketId: ticket._id,
+        type: "commented"
+      });
+    }
+
+    if (isClosing && isCreator) {
+      // Notify assigned agent or admin that ticket is closed
+      const recipient = ticket.assignedTo?._id || ticket.assignedTo;
+      if (recipient) {
+        await notificationController.createNotification({
+          recipient,
+          sender: req.user.id,
+          message: `Ticket closed by user: ${ticket.title}`,
+          ticketId: ticket._id,
+          type: "closure"
+        });
+      }
+    }
 
     const updatedTicket = await tickets.findById(id).populate([
       { path: "createdBy", select: "name email" },
